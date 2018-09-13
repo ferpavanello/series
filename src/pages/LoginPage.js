@@ -2,9 +2,11 @@ import React from "react";
 import {
   View,
   TextInput,
+  Text,
   StyleSheet,
   Button,
-  ActivityIndicator
+  ActivityIndicator,
+  Alert
 } from "react-native";
 import firebase from "firebase";
 
@@ -18,7 +20,8 @@ export default class LoginPage extends React.Component {
     this.state = {
       mail: "",
       password: "",
-      isLoading: false
+      isLoading: false,
+      message: ""
     };
   }
 
@@ -34,22 +37,79 @@ export default class LoginPage extends React.Component {
     this.setState({ isLoading: true });
 
     const { mail, password } = this.state;
+
+    const loginUserSuccess = user => {
+      this.setState({ message: "Sucesso!" });
+    };
+
+    const loginUserFailed = error => {
+      this.setState({
+        message: this.getMessageByErrorCode(error.code)
+      });
+    };
+
     firebase
       .auth()
       .signInWithEmailAndPassword(mail, password)
-      .then(user => {
-        console.log("Logou", user);
-      })
+      .then(loginUserSuccess)
       .catch(error => {
-        console.log("Hoje não", error);
+        if (error.code === "auth/user-not-found") {
+          Alert.alert(
+            "Usuário não encontrado",
+            "Deseja criar um cadastro com as informações inseridas?",
+            [
+              {
+                text: "Não",
+                onPress: () => {},
+                style: "cancel" //IOS
+              },
+              {
+                text: "Sim",
+                onPress: () => {
+                  firebase
+                    .auth()
+                    .createUserWithEmailAndPassword(mail, password)
+                    .then(loginUserSuccess)
+                    .catch(loginUserFailed);
+                }
+              }
+            ],
+            { cancelable: false }
+          );
+          return;
+        }
+
+        loginUserFailed(error);
       })
       .then(() => this.setState({ isLoading: false }));
+  }
+
+  getMessageByErrorCode(errorCode) {
+    switch (errorCode) {
+      case "auth/wrong-password":
+        return "Senha Incorreta";
+      case "auth/user-not-found":
+        return "Usuário não encontrado";
+      default:
+        return "Erro desconhecido";
+    }
   }
 
   renderButton() {
     if (this.state.isLoading) return <ActivityIndicator />;
 
     return <Button title="Entrar" onPress={() => this.tryLogin()} />;
+  }
+
+  renderMessage() {
+    const { message } = this.state;
+    if (!message) return null;
+
+    return (
+      <View>
+        <Text>{message}</Text>
+      </View>
+    );
   }
 
   render() {
@@ -73,6 +133,7 @@ export default class LoginPage extends React.Component {
           />
         </FormRow>
         {this.renderButton()}
+        {this.renderMessage()}
       </View>
     );
   }
